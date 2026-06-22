@@ -1,0 +1,13 @@
+ERD (Ultra Pro)
+
+profiles (id PK -> auth.users.id, name, phone, avatar_url, is_active, created_at)
+user_roles (id PK, user_id FK, role)
+foods (id PK, donor_id FK, title, description, quantity, expiry_time, address, latitude, longitude, status, primary_image_path, created_at)
+food_images (id PK, food_id FK -> foods.id, path, created_at)
+requests (id PK, food_id FK, receiver_id FK, status, created_at)  UNIQUE(food_id, receiver_id)
+deliveries (id PK, request_id FK, volunteer_id FK, delivery_status, delivered_at, created_at)
+notifications (id PK, user_id FK, type, title, body, data JSON, is_read, created_at)
+
+Notes:
+- Status mapping in UI: Accepted -> Approved, Completed -> Collected.
+- Storage bucket: 'food-images' (public read), uploads under {userId}/{foodId}/...

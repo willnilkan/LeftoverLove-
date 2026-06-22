@@ -1,0 +1,57 @@
+﻿:root {
+  --border: 210 16% 93%;
+  --input: 210 16% 93%;
+  --ring: 222.2 47.4% 11.2%;
+  --background: 0 0% 100%;
+  --foreground: 222.2 47.4% 11.2%;
+  --primary: 222.2 47.4% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 215 20% 40%;
+  --destructive: 0 78% 63%;
+  --destructive-foreground: 0 0% 100%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 20% 40%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 215 20% 40%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+  --radius: 12px;
+}
+
+.dark {
+  --border: 218 14% 12%;
+  --input: 218 14% 12%;
+  --ring: 217 100% 54%;
+  --background: 222.2 47.4% 9.6%;
+  --foreground: 210 40% 96%;
+  --primary: 217 100% 54%;
+  --primary-foreground: 222.2 47.4% 9.6%;
+  --secondary: 218 14% 12%;
+  --secondary-foreground: 210 40% 96%;
+  --destructive: 0 78% 63%;
+  --destructive-foreground: 222.2 47.4% 9.6%;
+  --muted: 216 15% 8%;
+  --muted-foreground: 210 40% 96%;
+  --accent: 218 14% 12%;
+  --accent-foreground: 210 40% 96%;
+  --popover: 222.2 47.4% 9.6%;
+  --popover-foreground: 210 40% 96%;
+  --card: 222.2 47.4% 9.6%;
+  --card-foreground: 210 40% 96%;
+  --radius: 12px;
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+a { color: hsl(var(--primary)); }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

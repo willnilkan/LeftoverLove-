@@ -1,0 +1,230 @@
+==========================================
+FoodShare Database Migrations
+==========================================
+
+QUICK SETUP:
+1. Go to: https://supabase.com/dashboard/project/djqwqujifsvpkhmdsxfv/sql/new
+2. Copy each SQL block below (one at a time)
+3. Paste into Supabase SQL editor
+4. Click "Run" (Ctrl+Enter)
+5. Wait for success ✅
+
+==========================================
+MIGRATION 1: Core Tables & Policies
+==========================================
+CREATE TYPE public.app_role AS ENUM ('donor', 'receiver', 'volunteer', 'admin');
+
+CREATE TABLE public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT, phone TEXT, avatar_url TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE TABLE public.user_roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role app_role NOT NULL, UNIQUE(user_id, role)
+);
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own role" ON public.user_roles FOR SELECT USING (auth.uid() = user_id);
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$ SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role) $$;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name) VALUES (NEW.id, NEW.raw_user_meta_data ->> 'name');
+  INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, (NEW.raw_user_meta_data ->> 'role')::app_role);
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+CREATE TYPE public.food_status AS ENUM ('Available', 'Reserved', 'Collected', 'Expired');
+
+CREATE TABLE public.foods (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL, description TEXT, quantity TEXT, expiry_time TIMESTAMPTZ,
+  address TEXT, latitude DOUBLE PRECISION NOT NULL, longitude DOUBLE PRECISION NOT NULL,
+  status food_status NOT NULL DEFAULT 'Available',
+  donor_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone authenticated can read available foods" ON public.foods FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Donors can insert own foods" ON public.foods FOR INSERT TO authenticated WITH CHECK (auth.uid() = donor_id);
+CREATE POLICY "Donors can update own foods" ON public.foods FOR UPDATE TO authenticated USING (auth.uid() = donor_id OR public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Donors can delete own foods" ON public.foods FOR DELETE TO authenticated USING (auth.uid() = donor_id OR public.has_role(auth.uid(), 'admin'));
+
+CREATE TYPE public.request_status AS ENUM ('Pending', 'Accepted', 'Rejected', 'Completed');
+
+CREATE TABLE public.requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  food_id UUID NOT NULL REFERENCES public.foods(id) ON DELETE CASCADE,
+  receiver_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status request_status NOT NULL DEFAULT 'Pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Receivers can view own requests" ON public.requests FOR SELECT TO authenticated USING (auth.uid() = receiver_id OR EXISTS (SELECT 1 FROM public.foods WHERE foods.id = food_id AND foods.donor_id = auth.uid()) OR public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Receivers can insert requests" ON public.requests FOR INSERT TO authenticated WITH CHECK (auth.uid() = receiver_id);
+CREATE POLICY "Donors and admins can update requests" ON public.requests FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM public.foods WHERE foods.id = food_id AND foods.donor_id = auth.uid()) OR public.has_role(auth.uid(), 'admin'));
+
+CREATE TYPE public.delivery_status AS ENUM ('Assigned', 'PickedUp', 'Delivered', 'Cancelled');
+
+CREATE TABLE public.deliveries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID NOT NULL REFERENCES public.requests(id) ON DELETE CASCADE,
+  volunteer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  delivery_status delivery_status NOT NULL DEFAULT 'Assigned',
+  delivered_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.deliveries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Volunteers can view own deliveries" ON public.deliveries FOR SELECT TO authenticated USING (auth.uid() = volunteer_id OR public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Volunteers can insert deliveries" ON public.deliveries FOR INSERT TO authenticated WITH CHECK (auth.uid() = volunteer_id);
+CREATE POLICY "Volunteers can update own deliveries" ON public.deliveries FOR UPDATE TO authenticated USING (auth.uid() = volunteer_id OR public.has_role(auth.uid(), 'admin'));
+
+==========================================
+MIGRATION 2: Volunteer & Request Fixes
+==========================================
+CREATE POLICY "Volunteers and admins can view accepted requests" ON public.requests FOR SELECT TO authenticated USING (status = 'Accepted' AND (public.has_role(auth.uid(), 'volunteer') OR public.has_role(auth.uid(), 'admin')));
+
+CREATE POLICY "Volunteers and admins can view all deliveries" ON public.deliveries FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'volunteer') OR public.has_role(auth.uid(), 'admin'));
+
+ALTER TABLE public.deliveries ADD CONSTRAINT deliveries_request_id_unique UNIQUE (request_id);
+
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE user_role app_role;
+BEGIN
+  BEGIN
+    user_role := COALESCE((NEW.raw_user_meta_data ->> 'role')::app_role, 'receiver');
+  EXCEPTION WHEN OTHERS THEN
+    user_role := 'receiver';
+  END;
+  INSERT INTO public.profiles (id, name) VALUES (NEW.id, NEW.raw_user_meta_data ->> 'name');
+  INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, user_role);
+  RETURN NEW;
+END;
+$$;
+
+==========================================
+MIGRATION 3: Roles & Profile Backfill
+==========================================
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE meta_role text;
+BEGIN
+  INSERT INTO public.profiles (id, name)
+  VALUES (NEW.id, NEW.raw_user_meta_data ->> 'name')
+  ON CONFLICT (id) DO UPDATE SET name = COALESCE(EXCLUDED.name, public.profiles.name);
+
+  INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, 'donor'::public.app_role) ON CONFLICT DO NOTHING;
+  INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, 'receiver'::public.app_role) ON CONFLICT DO NOTHING;
+
+  meta_role := NEW.raw_user_meta_data ->> 'role';
+  IF meta_role IS NOT NULL AND meta_role <> '' THEN
+    BEGIN
+      INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, (meta_role)::public.app_role) ON CONFLICT DO NOTHING;
+    EXCEPTION WHEN others THEN
+      NULL;
+    END;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+INSERT INTO public.user_roles (user_id, role) SELECT id, 'donor'::public.app_role FROM auth.users ON CONFLICT DO NOTHING;
+INSERT INTO public.user_roles (user_id, role) SELECT id, 'receiver'::public.app_role FROM auth.users ON CONFLICT DO NOTHING;
+
+ALTER TABLE public.requests ADD CONSTRAINT requests_food_receiver_unique UNIQUE (food_id, receiver_id);
+
+CREATE POLICY "Donors can view requesters profiles" ON public.profiles FOR SELECT TO authenticated
+USING (auth.uid() = id OR public.has_role(auth.uid(), 'admin') OR EXISTS (
+  SELECT 1 FROM public.requests r JOIN public.foods f ON f.id = r.food_id
+  WHERE f.donor_id = auth.uid() AND r.receiver_id = profiles.id
+));
+
+==========================================
+MIGRATION 4: Ultra Pro Features
+==========================================
+ALTER TYPE public.request_status ADD VALUE IF NOT EXISTS 'Cancelled';
+
+ALTER TABLE public.foods ADD COLUMN IF NOT EXISTS primary_image_path text;
+
+CREATE TABLE IF NOT EXISTS public.food_images (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  food_id uuid NOT NULL REFERENCES public.foods(id) ON DELETE CASCADE,
+  path text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.food_images ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "Food images read" ON public.food_images FOR SELECT TO authenticated USING (true);
+CREATE POLICY IF NOT EXISTS "Food images write" ON public.food_images FOR INSERT TO authenticated WITH CHECK (EXISTS (SELECT 1 FROM public.foods f WHERE f.id = food_id AND (f.donor_id = auth.uid() OR public.has_role(auth.uid(),'admin'))));
+CREATE POLICY IF NOT EXISTS "Food images delete" ON public.food_images FOR DELETE TO authenticated USING (EXISTS (SELECT 1 FROM public.foods f WHERE f.id = food_id AND (f.donor_id = auth.uid() OR public.has_role(auth.uid(),'admin'))));
+
+CREATE INDEX IF NOT EXISTS idx_food_images_food_id ON public.food_images(food_id);
+
+CREATE POLICY IF NOT EXISTS "Receiver can delete own pending" ON public.requests FOR DELETE TO authenticated USING (auth.uid() = receiver_id AND status = 'Pending');
+
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type text NOT NULL,
+  title text NOT NULL,
+  body text,
+  data jsonb NOT NULL DEFAULT '{}'::jsonb,
+  is_read boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "Users read own notifications" ON public.notifications FOR SELECT TO authenticated USING (auth.uid() = user_id OR public.has_role(auth.uid(),'admin'));
+CREATE POLICY IF NOT EXISTS "Users update own notifications" ON public.notifications FOR UPDATE TO authenticated USING (auth.uid() = user_id OR public.has_role(auth.uid(),'admin'));
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications(user_id, created_at DESC);
+
+CREATE OR REPLACE FUNCTION public.notify_on_request_insert() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE donor uuid; food_title text;
+BEGIN
+  SELECT f.donor_id, f.title INTO donor, food_title FROM public.foods f WHERE f.id = NEW.food_id;
+  INSERT INTO public.notifications(user_id, type, title, body, data) VALUES (donor, 'request_created', 'New food request', 'Someone requested: ' || COALESCE(food_title,'your food'), jsonb_build_object('request_id', NEW.id, 'food_id', NEW.food_id, 'receiver_id', NEW.receiver_id));
+  INSERT INTO public.notifications(user_id, type, title, body, data) VALUES (NEW.receiver_id, 'request_sent', 'Request sent', 'Your request is pending.', jsonb_build_object('request_id', NEW.id, 'food_id', NEW.food_id));
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_notify_request_insert ON public.requests;
+CREATE TRIGGER trg_notify_request_insert AFTER INSERT ON public.requests FOR EACH ROW EXECUTE FUNCTION public.notify_on_request_insert();
+
+CREATE OR REPLACE FUNCTION public.notify_on_request_update() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE food_title text;
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    SELECT title INTO food_title FROM public.foods WHERE id = NEW.food_id;
+    INSERT INTO public.notifications(user_id, type, title, body, data) VALUES (NEW.receiver_id, 'request_status', 'Request updated', 'Status changed to ' || NEW.status || ' for: ' || COALESCE(food_title,'food'), jsonb_build_object('request_id', NEW.id, 'food_id', NEW.food_id, 'status', NEW.status));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_notify_request_update ON public.requests;
+CREATE TRIGGER trg_notify_request_update AFTER UPDATE ON public.requests FOR EACH ROW EXECUTE FUNCTION public.notify_on_request_update();
+
+==========================================
+NEXT STEPS:
+==========================================
+✅ After all 4 migrations succeed:
+1. Refresh http://localhost:8081/
+2. Click "Sign Up"
+3. Create an account
+4. Choose a role (Donor/Receiver)
+5. Start using FoodShare!
+
+==========================================

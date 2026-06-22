@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FoodShare Database Migrations</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 {
+      text-align: center;
+      margin: 40px 0 10px;
+      color: #60a5fa;
+      font-size: 32px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 40px;
+    }
+    .intro {
+      background: #1e293b;
+      border-left: 4px solid #60a5fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+    .intro p { margin: 10px 0; }
+    .intro strong { color: #60a5fa; }
+    .migration {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      margin: 20px 0;
+      overflow: hidden;
+    }
+    .migration-header {
+      background: #0f172a;
+      padding: 15px 20px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .migration-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #60a5fa;
+    }
+    .migration-num {
+      background: #60a5fa;
+      color: #0f172a;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .migration-content {
+      padding: 20px;
+    }
+    .migration-desc {
+      color: #cbd5e1;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    .sql-block {
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #d1d5db;
+      max-height: 500px;
+      overflow-y: auto;
+      margin: 15px 0;
+    }
+    .copy-btn {
+      background: #10b981;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover {
+      background: #059669;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    .copy-btn:active {
+      background: #047857;
+    }
+    .link-btn {
+      background: #3b82f6;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 6px;
+      text-decoration: none;
+      display: inline-block;
+      margin: 20px 0;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .link-btn:hover {
+      background: #2563eb;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    .checklist {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 6px;
+      margin: 20px 0;
+      border: 1px solid #334155;
+    }
+    .checklist-item {
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .checklist-item input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .steps {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 6px;
+      margin: 20px 0;
+      border: 1px solid #334155;
+    }
+    .step-item {
+      padding: 10px 0;
+      border-bottom: 1px solid #334155;
+      padding-left: 30px;
+      position: relative;
+    }
+    .step-item:last-child {
+      border-bottom: none;
+    }
+    .step-item::before {
+      content: attr(data-step);
+      position: absolute;
+      left: 0;
+      background: #60a5fa;
+      color: #0f172a;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .success-box {
+      background: #064e3b;
+      border: 1px solid #10b981;
+      color: #86efac;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 FoodShare Database Setup</h1>
+    <p class="subtitle">Apply 4 migrations to your Supabase project</p>
+
+    <div class="intro">
+      <p>📋 <strong>Your Project:</strong> djqwqujifsvpkhmdsxfv</p>
+      <p>🔗 <strong>Dashboard:</strong> <a href="https://supabase.com/dashboard/project/djqwqujifsvpkhmdsxfv" style="color: #60a5fa;" target="_blank">supabase.com/dashboard</a></p>
+    </div>
+
+    <div class="steps">
+      <div class="step-item" data-step="1">Open <a href="https://supabase.com/dashboard/project/djqwqujifsvpkhmdsxfv/sql/new" style="color: #60a5fa;" target="_blank">Supabase SQL Editor</a></div>
+      <div class="step-item" data-step="2">For each migration below, click "Copy SQL"</div>
+      <div class="step-item" data-step="3">Paste into the SQL editor</div>
+      <div class="step-item" data-step="4">Click "Run" (or press Ctrl+Enter)</div>
+      <div class="step-item" data-step="5">Wait for success ✅, then move to next migration</div>
+    </div>
+
+    <!-- Migration 1 -->
+    <div class="migration">
+      <div class="migration-header">
+        <div style="flex: 1;">
+          <div class="migration-title">Core Tables & Policies</div>
+          <div class="migration-desc" style="color: #64748b; font-size: 12px; margin: 5px 0 0;">Profiles, roles, foods, requests, deliveries</div>
+        </div>
+        <div class="migration-num">1</div>
+      </div>
+      <div class="migration-content">
+        <div class="sql-block">CREATE TYPE public.app_role AS ENUM ('donor', 'receiver', 'volunteer', 'admin');
+
+CREATE TABLE public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT, phone TEXT, avatar_url TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE TABLE public.user_roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role app_role NOT NULL, UNIQUE(user_id, role)
+);
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own role" ON public.user_roles FOR SELECT USING (auth.uid() = user_id);
+
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$ SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role) $$;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name) VALUES (NEW.id, NEW.raw_user_meta_data ->> 'name');
+  INSERT INTO public.user_roles (user_id, role) VALUES (NEW.id, (NEW.raw_user_meta_data ->> 'role')::app_role);
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+CREATE TYPE public.food_status AS ENUM ('Available', 'Reserved', 'Collected', 'Expired');
+
+CREATE TABLE public.foods (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL, description TEXT, quantity TEXT, expiry_time TIMESTAMPTZ,
+  address TEXT, latitude DOUBLE PRECISION NOT NULL, longitude DOUBLE PRECISION NOT NULL,
+  status food_status NOT NULL DEFAULT 'Available',
+  donor_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone authenticated can read available foods" ON public.foods FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Donors can insert own foods" ON public.foods FOR INSERT TO authenticated WITH CHECK (auth.uid() = donor_id);
+CREATE POLICY "Donors can update own foods" ON public.foods FOR UPDATE TO authenticated USING (auth.uid() = donor_id OR public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Donors can delete own foods" ON public.foods FOR DELETE TO authenticated USING (auth.uid() = donor_id OR public.has_role(auth.uid(), 'admin'));
+
+CREATE TYPE public.request_status AS ENUM ('Pending', 'Accepted', 'Rejected', 'Completed');
+
+CREATE TABLE public.requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  food_id UUID NOT NULL REFERENCES public.foods(id) ON DELETE CASCADE,
+  receiver_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status request_status NOT NULL DEFAULT 'Pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Receivers can view own requests" ON public.requests FOR SELECT TO authenticated USING (auth.uid() = receiver_id OR EXISTS (SELECT 1 FROM public.foods WHERE foods.id = food_id AND foods.donor_id = auth.uid()) OR public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Receivers can insert requests" ON public.requests FOR INSERT TO authenticated WITH CHECK (auth.uid() = receiver_id);
+CREATE POLICY "Donors and admins can update requests" ON public.requests FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM public.foods WHERE foods.id = food_id AND foods.donor_id = auth.uid()) OR public.has_role(auth.uid(), 'admin'));
+
+CREATE TYPE public.delivery_status AS ENUM ('Assigned', 'PickedUp', 'Delivered', 'Cancelled');
+
+CREATE TABLE public.deliveries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id UUID NOT NULL REFERENCES public.requests(id) ON DELETE CASCADE,
+  volunteer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  delivery_status delivery_status NOT NULL DEFAULT 'Assigned',
+  delivered_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.deliveries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Volunteers can view own deliveries" ON public.deliveries FOR SELECT TO authenticated USING (auth.uid() = volunteer_id OR public.has_role(auth.uid(), 'admin'));
+CREATE POLICY "Volunteers can insert deliveries" ON public.deliveries FOR INSERT TO authenticated WITH CHECK (auth.uid() = volunteer_id);
+CREATE POLICY "Volunteers can update own deliveries" ON public.deliveries FOR UPDATE TO authenticated USING (auth.uid() = volunteer_id OR public.has_role(auth.uid(), 'admin'));
